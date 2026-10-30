@@ -1,0 +1,100 @@
+{
+  "dataset": {
+    "transactions": 1097512,
+    "fraud": 3637,
+    "fraud_rate_pct": 0.331,
+    "train": 732122,
+    "valid": 146718,
+    "test": 218672,
+    "test_fraud": 823
+  },
+  "alert_budget_pct": 0.5,
+  "results": [
+    {
+      "model": "Rule engine (baseline)",
+      "pr_auc": null,
+      "roc_auc": null,
+      "precision": 0.244,
+      "recall": 0.6561,
+      "false_positive_rate": 0.00768,
+      "alerts_per_day": 184.4,
+      "fraud_value_caught_pct": 74.38,
+      "recall_by_typology": {
+        "APP_SCAM": 0.659,
+        "ATO": 0.691,
+        "MULE_FANIN": 0.667,
+        "VPA_TESTING": 0.55
+      }
+    },
+    {
+      "model": "Logistic regression",
+      "pr_auc": 0.3238,
+      "roc_auc": 0.9886,
+      "precision": 0.3123,
+      "recall": 0.4326,
+      "false_positive_rate": 0.0036,
+      "alerts_per_day": 95.0,
+      "fraud_value_caught_pct": 56.16,
+      "recall_by_typology": {
+        "APP_SCAM": 0.011,
+        "ATO": 0.267,
+        "MULE_FANIN": 0.523,
+        "VPA_TESTING": 0.86
+      }
+    },
+    {
+      "model": "Gradient-boosted trees",
+      "pr_auc": 0.9467,
+      "roc_auc": 0.9994,
+      "precision": 0.7947,
+      "recall": 0.9125,
+      "false_positive_rate": 0.00089,
+      "alerts_per_day": 78.8,
+      "fraud_value_caught_pct": 92.66,
+      "recall_by_typology": {
+        "APP_SCAM": 0.545,
+        "ATO": 0.961,
+        "MULE_FANIN": 0.941,
+        "VPA_TESTING": 0.984
+      }
+    },
+    {
+      "model": "Hybrid (rules OR GBT)",
+      "pr_auc": null,
+      "roc_auc": null,
+      "precision": 0.3049,
+      "recall": 0.9563,
+      "false_positive_rate": 0.00824,
+      "alerts_per_day": 215.1,
+      "fraud_value_caught_pct": 98.11,
+      "recall_by_typology": {
+        "APP_SCAM": 0.795,
+        "ATO": 0.968,
+        "MULE_FANIN": 0.978,
+        "VPA_TESTING": 0.984
+      }
+    }
+  ],
+  "feature_importance": {
+    "payee_txn_no": 0.5808,
+    "new_payees_1h": 0.4594,
+    "payee_new_senders_24h": 0.2563,
+    "is_new_payee": 0.059,
+    "amt_vs_user_avg": 0.0396,
+    "payee_age_hrs": 0.0286,
+    "mins_since_last": 0.0177,
+    "user_amt_1h": 0.0138,
+    "amt_zscore": 0.0089,
+    "is_new_device": 0.0078,
+    "payee_txn_24h": 0.0061,
+    "log_amount": 0.0053,
+    "user_txn_no": 0.0053,
+    "hour": 0.0047,
+    "small_txn_1h": 0.0031,
+    "is_p2p": 0.0026,
+    "device_age_hrs": 0.0004,
+    "user_txn_1h": 0.0003,
+    "is_night": -0.0001,
+    "user_txn_24h": -0.0002
+  }
+}

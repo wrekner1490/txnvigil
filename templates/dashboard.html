@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TxnVigil - Live UPI Fraud Monitor</title>
+<style>
+  :root{--bg:#0f1420;--card:#171e2e;--ink:#e6e9f0;--mute:#8a93a8;--red:#e5484d;--amber:#f5a524;--green:#30a46c;--blue:#4c8dff}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,Segoe UI,sans-serif}
+  header{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;border-bottom:1px solid #232b3d}
+  h1{font-size:18px;margin:0}.mute{color:var(--mute)}
+  .grid{display:grid;gap:14px;padding:16px 22px}
+  .kpis{grid-template-columns:repeat(6,1fr)}.two{grid-template-columns:2fr 1fr}
+  .card{background:var(--card);border-radius:10px;padding:14px}
+  .kpi b{display:block;font-size:24px;margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;text-align:left;border-bottom:1px solid #232b3d}
+  th{color:var(--mute);font-weight:500}.pill{padding:2px 7px;border-radius:9px;font-size:11px}
+  .tp{background:#30a46c33;color:var(--green)}.fp{background:#f5a52433;color:var(--amber)}
+  .score{font-variant-numeric:tabular-nums;font-weight:600}
+  ul{margin:0;padding-left:16px}#alerts{max-height:430px;overflow:auto}
+  button{background:var(--blue);color:#fff;border:0;border-radius:6px;padding:7px 14px;cursor:pointer}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>TxnVigil · Live UPI Fraud Monitor</h1>
+  <span class="mute">Replaying unseen test window · GBT threshold {{threshold}} + rule engine</span></div>
+  <button id="go">Start stream</button>
+</header>
+<section class="grid kpis">
+  <div class="card kpi"><span class="mute">Txns scored</span><b id="k-n">0</b></div>
+  <div class="card kpi"><span class="mute">Alerts raised</span><b id="k-a">0</b></div>
+  <div class="card kpi"><span class="mute">Fraud caught*</span><b id="k-tp">0</b></div>
+  <div class="card kpi"><span class="mute">Fraud missed*</span><b id="k-fn">0</b></div>
+  <div class="card kpi"><span class="mute">Alert precision*</span><b id="k-p">–</b></div>
+  <div class="card kpi"><span class="mute">Fraud value blocked*</span><b id="k-v">₹0</b></div>
+</section>
+<section class="grid two">
+  <div class="card"><b>Alerts per batch of 1,000 txns</b><canvas id="c1" style="width:100%;height:200px"></canvas></div>
+  <div class="card"><b>Caught by fraud typology*</b><canvas id="c2" style="width:100%;height:200px"></canvas><div class="mute" style="font-size:12px"><span style="color:var(--green)">■</span> caught <span style="color:var(--red)">■</span> missed</div></div>
+</section>
+<section class="grid">
+  <div class="card"><b>Analyst alert queue</b> <span class="mute">(newest first)</span>
+    <div id="alerts"><table><thead><tr><th>Time</th><th>Txn</th><th>Customer → Payee</th><th>Amount</th>
+      <th>Risk</th><th>Why flagged</th><th>Outcome*</th></tr></thead><tbody id="tb"></tbody></table></div>
+  </div>
+  <p class="mute">* Ground-truth labels exist only because the data is simulated; a real bank learns outcomes later from customer complaints / chargebacks.</p>
+</section>
+<script>
+const $=id=>document.getElementById(id), inr=v=>'₹'+Math.round(v).toLocaleString('en-IN');
+let n=0,a=0,tp=0,fn=0,val=0,bucket=0,bucketAlerts=0;const typ={};
+const series=[];
+function sizeCanvas(c){const r=c.getBoundingClientRect(),d=devicePixelRatio||1;c.width=r.width*d;c.height=r.height*d;const x=c.getContext('2d');x.scale(d,d);return [x,r.width,r.height]}
+function drawLine(){const [x,w,h]=sizeCanvas($('c1'));if(!series.length)return;const m=Math.max(...series,1);
+  x.strokeStyle='#232b3d';x.fillStyle='#8a93a8';x.font='11px system-ui';
+  for(let i=0;i<=4;i++){const y=h-20-(h-30)*i/4;x.beginPath();x.moveTo(30,y);x.lineTo(w,y);x.stroke();x.fillText(Math.round(m*i/4),2,y+4)}
+  x.strokeStyle='#4c8dff';x.lineWidth=2;x.beginPath();
+  series.forEach((v,i)=>{const px=30+(w-35)*i/Math.max(series.length-1,1),py=h-20-(h-30)*v/m;i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke()}
+function drawBars(){const [x,w,h]=sizeCanvas($('c2'));const ks=Object.keys(typ).sort();if(!ks.length)return;
+  const m=Math.max(...ks.map(k=>typ[k][0]+typ[k][1]),1),bh=Math.min(28,(h-10)/ks.length-10);x.font='12px system-ui';
+  ks.forEach((k,i)=>{const y=8+i*(bh+12),L=95,W=w-L-40,c=typ[k][0],ms=typ[k][1];
+    x.fillStyle='#e6e9f0';x.fillText(k,0,y+bh/2+4);
+    x.fillStyle='#30a46c';x.fillRect(L,y,W*c/m,bh);x.fillStyle='#e5484d';x.fillRect(L+W*c/m,y,W*ms/m,bh);
+    x.fillStyle='#8a93a8';x.fillText(`${(100*c/Math.max(c+ms,1)).toFixed(0)}%`,L+W*(c+ms)/m+5,y+bh/2+4)})}
+function render(){
+  $('k-n').textContent=n.toLocaleString('en-IN');$('k-a').textContent=a;$('k-tp').textContent=tp;$('k-fn').textContent=fn;
+  $('k-p').textContent=a?(100*tp/a).toFixed(1)+'%':'–';$('k-v').textContent=inr(val);
+  drawBars();drawLine();
+}
+$('go').onclick=()=>{ $('go').disabled=true;
+  const es=new EventSource('/stream?speed=400');
+  es.onmessage=e=>{ for(const t of JSON.parse(e.data)){
+      n++; bucket++;
+      if(t.is_fraud){typ[t.type]??=[0,0]; typ[t.type][t.alert?0:1]++; if(t.alert){tp++;val+=t.amount}else fn++}
+      if(t.alert){a++;bucketAlerts++;
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${t.ts.slice(5)}</td><td>${t.id}</td><td>${t.user} → ${t.payee}</td><td>${inr(t.amount)}</td>
+          <td class="score" style="color:${t.score>.9?'var(--red)':'var(--amber)'}">${t.score.toFixed(3)}</td>
+          <td><ul>${t.reasons.map(r=>`<li>${r}</li>`).join('')}${t.rules.length?`<li class="mute">Rules: ${t.rules.join(', ')}</li>`:''}</ul></td>
+          <td><span class="pill ${t.is_fraud?'tp':'fp'}">${t.is_fraud?t.type:'false alarm'}</span></td>`;
+        $('tb').prepend(tr); if($('tb').rows.length>200)$('tb').deleteRow(-1);}
+      if(bucket>=1000){series.push(bucketAlerts);if(series.length>120)series.shift();bucket=0;bucketAlerts=0}
+    } render(); };
+  es.onerror=()=>{es.close();$('go').textContent='Stream finished';};
+};
+</script>
+</body>
+</html>
