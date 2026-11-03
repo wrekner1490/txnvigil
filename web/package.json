@@ -1,0 +1,8 @@
+{
+  "name": "@txnvigil/web",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "echo \"web app arrives in P5\""
+  }
+}
