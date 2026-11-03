@@ -1,0 +1,25 @@
+# TxnVigil v2 — line-ending and file-type rules (CP-0a D3; CP-0 C7)
+# Normalise all text to LF in the repository and working tree.
+* text=auto eol=lf
+
+# Windows scripts keep CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Binary files: no EOL conversion, no textual diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.joblib binary
+*.pkl binary
+*.parquet binary
+*.db binary
+*.sqlite binary
+*.zip binary
+*.gz binary
+
+# GitHub linguist: research report is documentation, not code
+docs/RESEARCH.md linguist-documentation
