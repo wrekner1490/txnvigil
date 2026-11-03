@@ -1,0 +1,19 @@
+# TxnVigil v2 — Dependabot (spec §17.5; P0-T04).
+# "uv" is a supported package-ecosystem (reads pyproject.toml / uv.lock). Until uv.lock is committed
+# (CP-0 K2) uv updates are limited to pyproject.toml lower bounds.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"

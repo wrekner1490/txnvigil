@@ -1,0 +1,3 @@
+# pnpm workspace (placeholder; the React app arrives in P5).
+packages:
+  - "web"

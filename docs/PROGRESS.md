@@ -1,6 +1,6 @@
 # TxnVigil v2 — Progress
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 
 **Current phase: P0 — Foundations** (plan approved at CP-0, see [DECISIONS.md](DECISIONS.md)).
 
@@ -24,11 +24,11 @@ Deliveries per CP-0 D-F: DLV-1 = T01 + T02 + T06, DLV-2 = T03 + T04, DLV-3 = T05
 | ID | Title | Status | Owner | Delivery | Commit/PR | Date |
 |---|---|---|---|---|---|---|
 | P0-T00 | Environment probe | DONE | WORKER | — | — | 2026-11-02 |
-| P0-T01 | Repo bootstrap + v1 move to legacy/v1/ | IN DELIVERY | WORKER | DLV-1 | | 2026-11-02 |
-| P0-T02 | Spec update (D-D + D5 + FR-13a + RD-1) | IN DELIVERY | WORKER | DLV-1 | | 2026-11-02 |
-| P0-T06 | ADRs 0001–0005 | IN DELIVERY | WORKER | DLV-1 | | 2026-11-02 |
-| P0-T03 | Monorepo skeleton | TODO | WORKER | DLV-2 | | |
-| P0-T04 | CI skeleton | TODO | WORKER | DLV-2 | | |
+| P0-T01 | Repo bootstrap + v1 move to legacy/v1/ | DONE | WORKER | DLV-1 | 7d0af93 | 2026-11-03 |
+| P0-T02 | Spec update (D-D + D5 + FR-13a + RD-1) | DONE | WORKER | DLV-1 | 7d0af93 | 2026-11-03 |
+| P0-T06 | ADRs 0001–0005 | DONE | WORKER | DLV-1 | 7d0af93 | 2026-11-03 |
+| P0-T03 | Monorepo skeleton | IN DELIVERY | WORKER | DLV-2 | | 2026-11-03 |
+| P0-T04 | CI skeleton | IN DELIVERY | WORKER | DLV-2 | | 2026-11-03 |
 | P0-T05 | Compose core (Valkey / Redpanda / Postgres) | TODO | WORKER | DLV-3 | | |
 
 Status values: TODO → IN PROGRESS → IN DELIVERY (files prepared, awaiting user commit + CI) → DONE

@@ -20,6 +20,18 @@ alone (spec §3).
 - Decision log: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Requirement traceability: [docs/traceability.csv](docs/traceability.csv)
 
+## Development (P0)
+
+Prerequisites: [uv](https://docs.astral.sh/uv/) and Python ≥ 3.12.
+
+```sh
+make sync   # create .venv with the dev tools (uv sync --group dev)
+make lint   # ruff check, ruff format --check, pyright (strict on core/)
+make test   # pytest with coverage (gate: 80% on core/)
+```
+
+`make help` lists all targets. CI is the authoritative test runner; local runs are a pre-check.
+
 ## v1
 
 v1 (frozen, not maintained) lives in [legacy/v1/](legacy/v1/). Its results are v1-only and synthetic
