@@ -49,3 +49,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# --- Claude app downloads folder (never commit) ---
+/Claude outputs/
