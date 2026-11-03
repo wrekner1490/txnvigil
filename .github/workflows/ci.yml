@@ -1,0 +1,212 @@
+# TxnVigil v2 — CI (P0-T04; spec §17.1, §17.5; NFR-06, NFR-08; CP-0 C2, C4, K2, D-E, T04).
+# CI is the authoritative test runner for third-party dependencies (CP-0 D-E option B).
+#
+# Action pinning: actions are pinned to MAJOR tags for P0; SHA pinning is planned later
+# (Dependabot keeps the tags/SHAs current, see .github/dependabot.yml).
+#
+# Not here yet (by design):
+#   - Docker/compose, image build, Trivy, Syft     -> P0-T05 and later
+#   - hadolint                                     -> arrives with the first Dockerfile
+#   - Node/pnpm, eslint, prettier, Vitest, npm audit -> P5 (frontend)
+#   - Semgrep, osv-scanner, OpenAPI diff, integration tests -> later tasks
+#
+# Lockfile (CP-0 K2): until uv.lock is committed, `uv sync` resolves fresh on every run and the
+# `lock` job uploads the resolved uv.lock as an artefact. After the user commits it, switch the
+# sync steps to `uv sync --frozen --group dev` and the cache glob to uv.lock (follow-up task).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: lint (ruff, pyright, yamllint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          # No uv.lock committed yet (K2); key the cache on pyproject.toml until then.
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Install dev dependencies
+        run: uv sync --group dev
+      - name: ruff check, ruff format --check, pyright (strict on core/)
+        run: make lint
+      - name: yamllint (via uvx, not a repo dependency)
+        run: |
+          uvx yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" .github/
+
+  test:
+    name: test (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]  # CP-0 C4: one version is chosen at CP-1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Install dev dependencies (includes hypothesis for property tests)
+        run: uv sync --group dev
+      - name: pytest with coverage (gate 80% on core/, NFR-08, D-D R4)
+        run: >-
+          uv run pytest
+          --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+      - name: Upload coverage.xml
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python }}
+          path: coverage.xml
+          if-no-files-found: warn
+
+  security:
+    name: security (gitleaks, pip-audit, bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read  # gitleaks-action lists PR commits via the API
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Personal-account repositories need no GITLEAKS_LICENSE; organisation repos would.
+      - name: gitleaks (secret scan, NFR-06)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"  # token is read-only; findings show in the job log
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - name: Export pinned requirements (creates uv.lock in the workspace if absent)
+        run: uv export --group dev --no-hashes --no-emit-project --format requirements-txt > /tmp/req.txt
+      - name: pip-audit (dependency audit, NFR-06)
+        run: uvx pip-audit -r /tmp/req.txt --strict
+      - name: "bandit (RD-1 #10)"
+        run: uvx bandit -q -r core services scripts simulator adapters ml -x tests
+
+  traceability:
+    name: traceability (warn mode)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: false  # stdlib-only script, nothing to cache
+      # DECISIONS T04: warn-only through P1; from P2 this step becomes
+      # `... check_traceability.py --strict` (MUST requirements without tests fail CI).
+      - name: Check docs/traceability.csv (spec §4.10)
+        run: uv run --no-project python scripts/check_traceability.py
+
+  deps-probe:
+    name: deps-probe (py${{ matrix.python }}, non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true  # CP-0 C4: informs the CP-1 Python-version recommendation only
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      # No checkout: the probe needs no repo files. Cache off: fresh installs are the point.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: false
+      - name: Install and import each heavy dependency in a fresh venv
+        env:
+          PY: ${{ matrix.python }}
+        run: |
+          set +e
+          out="deps-probe-${PY}.md"
+          {
+            echo "### deps-probe (Python ${PY})"
+            echo
+            echo "| package | python | install | import | version |"
+            echo "|---|---|---|---|---|"
+          } > "$out"
+          for spec in lightgbm:lightgbm python-igraph:igraph confluent-kafka:confluent_kafka \
+                      duckdb:duckdb fastapi:fastapi valkey:valkey redis:redis \
+                      hypothesis:hypothesis testcontainers:testcontainers; do
+            pkg="${spec%%:*}"
+            mod="${spec#*:}"
+            venv="/tmp/p-${pkg}"
+            install="FAIL"
+            import="FAIL"
+            version="-"
+            echo "::group::${pkg}"
+            if uv venv "$venv" --python "$PY" && uv pip install --python "$venv/bin/python" "$pkg"; then
+              install="ok"
+              version="$(uv pip show --python "$venv/bin/python" "$pkg" 2>/dev/null | awk '/^Version:/ {print $2}')"
+              if "$venv/bin/python" -c "import ${mod}"; then
+                import="ok"
+              fi
+            fi
+            echo "::endgroup::"
+            echo "| ${pkg} | ${PY} | ${install} | ${import} | ${version:--} |" >> "$out"
+          done
+          cat "$out"
+          cat "$out" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - name: Upload deps-probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deps-probe-${{ matrix.python }}
+          path: deps-probe-${{ matrix.python }}.md
+          if-no-files-found: warn
+
+  lock:
+    name: lock (uv lock artefact, CP-0 K2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: false  # always resolve against the live index
+      - name: Resolve uv.lock
+        run: uv lock
+      - name: Verify uv.lock is consistent with pyproject.toml
+        run: uv lock --check
+      # The user downloads this artefact and commits uv.lock (K2); then all sync steps switch to
+      # `uv sync --frozen` (follow-up task).
+      - name: Upload uv.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: uv-lock
+          path: uv.lock
+          if-no-files-found: error
